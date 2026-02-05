@@ -8,7 +8,7 @@ services:
       - LETSENCRYPT_HOST=disparos.abmix.tech
       - LETSENCRYPT_EMAIL=contato@abmix.com.br
       - API_TOKEN=change-me-too
-      - API_USER=editor
+      - API_USER=julio
     volumes:
       - ./instance:/app/instance
     expose:
