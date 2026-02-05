@@ -7,6 +7,8 @@ services:
       - VIRTUAL_HOST=disparos.abmix.tech
       - LETSENCRYPT_HOST=disparos.abmix.tech
       - LETSENCRYPT_EMAIL=contato@abmix.com.br
+      - API_TOKEN=change-me-too
+      - API_USER=editor
     volumes:
       - ./instance:/app/instance
     expose:

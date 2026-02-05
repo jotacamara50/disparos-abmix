@@ -6,6 +6,7 @@ from io import BytesIO
 from flask import (
     Flask,
     flash,
+    jsonify,
     redirect,
     render_template,
     request,
@@ -470,6 +471,92 @@ def register_routes(app):
         filename = "relatorio.pdf"
         return send_file(output, as_attachment=True, download_name=filename, mimetype="application/pdf")
 
+    @app.route("/api/n8n/report", methods=["POST"])
+    def api_n8n_report():
+        token = extract_api_token(request)
+        api_token = os.getenv("API_TOKEN")
+        if not api_token or token != api_token:
+            return jsonify({"error": "unauthorized"}), 401
+
+        payload = request.get_json(silent=True) or {}
+        report_date = parse_date(payload.get("date")) or date.today()
+        total_sent = payload.get("total_sent")
+        total_accepted = payload.get("total_accepted")
+        notes = (payload.get("notes") or "").strip()
+        allocations_payload = payload.get("allocations") or []
+
+        try:
+            total_sent = int(total_sent)
+        except (TypeError, ValueError):
+            return jsonify({"error": "total_sent must be an integer"}), 400
+
+        if total_sent < 0:
+            return jsonify({"error": "total_sent must be >= 0"}), 400
+
+        allocations, allocation_sum, error = parse_allocations(allocations_payload)
+        if error:
+            return jsonify({"error": error}), 400
+
+        if total_accepted is None:
+            total_accepted = allocation_sum
+        try:
+            total_accepted = int(total_accepted)
+        except (TypeError, ValueError):
+            return jsonify({"error": "total_accepted must be an integer"}), 400
+
+        if total_accepted < 0:
+            return jsonify({"error": "total_accepted must be >= 0"}), 400
+        if total_accepted > total_sent:
+            return jsonify({"error": "total_accepted cannot exceed total_sent"}), 400
+        if allocation_sum != total_accepted:
+            return jsonify({"error": "allocation sum must equal total_accepted"}), 400
+
+        api_user = resolve_api_user()
+        if not api_user:
+            return (
+                jsonify(
+                    {
+                        "error": "API user not found. Create an editor user and set API_USER.",
+                    }
+                ),
+                400,
+            )
+
+        report = DailyReport.query.filter_by(report_date=report_date).first()
+        updated = False
+        if report:
+            report.total_sent = total_sent
+            report.total_accepted = total_accepted
+            report.notes = notes
+            report.updated_at = datetime.utcnow()
+            Allocation.query.filter_by(report_id=report.id).delete()
+            updated = True
+        else:
+            report = DailyReport(
+                report_date=report_date,
+                total_sent=total_sent,
+                total_accepted=total_accepted,
+                notes=notes,
+                created_by=api_user.id,
+                updated_at=datetime.utcnow(),
+            )
+            db.session.add(report)
+            db.session.flush()
+
+        db.session.add_all(
+            [
+                Allocation(
+                    report_id=report.id,
+                    vendor_id=allocation["vendor_id"],
+                    accepted_count=allocation["accepted_count"],
+                )
+                for allocation in allocations
+            ]
+        )
+        db.session.commit()
+
+        return jsonify({"status": "ok", "report_id": report.id, "updated": updated}), 200
+
 
 def validate_report(report_date, total_sent, total_accepted, vendors, form_data):
     if not report_date:
@@ -518,6 +605,57 @@ def build_allocations(vendors, form_data, report_id):
                 )
             )
     return allocations
+
+
+def extract_api_token(req):
+    auth_header = req.headers.get("Authorization", "")
+    if auth_header.lower().startswith("bearer "):
+        return auth_header.split(" ", 1)[1].strip()
+    return req.headers.get("X-API-Key")
+
+
+def resolve_api_user():
+    api_username = os.getenv("API_USER")
+    if api_username:
+        return User.query.filter_by(username=api_username).first()
+    return User.query.filter_by(role="editor").order_by(User.id.asc()).first()
+
+
+def parse_allocations(items):
+    allocations = []
+    allocation_sum = 0
+    if not isinstance(items, list):
+        return [], 0, "allocations must be a list"
+
+    for item in items:
+        if not isinstance(item, dict):
+            return [], 0, "allocation items must be objects"
+        vendor_email = (item.get("email") or "").strip().lower()
+        vendor_name = (item.get("name") or "").strip()
+        count = item.get("count")
+
+        try:
+            count = int(count)
+        except (TypeError, ValueError):
+            return [], 0, "allocation count must be an integer"
+
+        if count < 0:
+            return [], 0, "allocation count must be >= 0"
+
+        vendor = None
+        if vendor_email:
+            vendor = Vendor.query.filter(db.func.lower(Vendor.email) == vendor_email).first()
+        if vendor is None and vendor_name:
+            vendor = Vendor.query.filter_by(name=vendor_name).first()
+
+        if vendor is None:
+            return [], 0, f"vendor not found: {vendor_email or vendor_name}"
+
+        if count > 0:
+            allocations.append({"vendor_id": vendor.id, "accepted_count": count})
+            allocation_sum += count
+
+    return allocations, allocation_sum, None
 
 
 app = create_app()

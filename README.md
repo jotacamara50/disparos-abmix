@@ -59,3 +59,35 @@ CMD ["gunicorn", "-b", "0.0.0.0:5000", "app:app"]
 Se voce ja usa `jwilder/nginx-proxy` + `letsencrypt-nginx-proxy-companion`:
 - ajuste `VIRTUAL_HOST`, `LETSENCRYPT_HOST` e `LETSENCRYPT_EMAIL` em `docker-compose.yml`
 - a rede externa esta configurada como `stack_nginx-proxy`
+
+## Automacao via n8n (Webhook)
+O sistema aceita um POST para criar/atualizar o relatorio do dia.
+
+### Variaveis de ambiente
+- `API_TOKEN`: token compartilhado (obrigatorio)
+- `API_USER`: username de um usuario `editor` (opcional). Se nao definir, usa o primeiro editor cadastrado.
+
+### Endpoint
+`POST /api/n8n/report`
+
+Header:
+- `Authorization: Bearer <API_TOKEN>` ou `X-API-Key: <API_TOKEN>`
+
+Payload exemplo:
+```json
+{
+  "date": "2026-02-05",
+  "total_sent": 120,
+  "total_accepted": 30,
+  "allocations": [
+    {"email": "comercial1@abmix.com.br", "count": 10},
+    {"email": "comercial2@abmix.com.br", "count": 20}
+  ],
+  "notes": "Relatorio automatico do n8n"
+}
+```
+
+Regras:
+- Se `total_accepted` nao vier, ele sera a soma das alocacoes.
+- A soma das alocacoes deve bater com `total_accepted`.
+- `total_accepted` nao pode ser maior que `total_sent`.
