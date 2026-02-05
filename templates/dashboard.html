@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="dashboard-header">
+  <div>
+    <h1>Dashboard</h1>
+    <p>Acompanhe os disparos diarios e encaminhamentos.</p>
+  </div>
+  {% if current_user.role == 'editor' %}
+    <a class="btn btn-primary" href="{{ url_for('new_report') }}">Novo lancamento</a>
+  {% endif %}
+</div>
+
+<div class="filters card p-3 mb-4">
+  <form method="get" class="row g-3 align-items-end">
+    <div class="col-12 col-md-4">
+      <label class="form-label">Data inicio</label>
+      <input class="form-control" type="date" name="start" value="{{ start.isoformat() if start else '' }}">
+    </div>
+    <div class="col-12 col-md-4">
+      <label class="form-label">Data fim</label>
+      <input class="form-control" type="date" name="end" value="{{ end.isoformat() if end else '' }}">
+    </div>
+    <div class="col-12 col-md-4 d-flex gap-2">
+      <button class="btn btn-outline-primary flex-grow-1" type="submit">Filtrar</button>
+      <a class="btn btn-outline-secondary flex-grow-1" href="{{ url_for('dashboard') }}">Limpar</a>
+    </div>
+  </form>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-12 col-md-6">
+    <div class="stat-card">
+      <div class="stat-label">Disparos no periodo</div>
+      <div class="stat-value">{{ totals.total_sent }}</div>
+    </div>
+  </div>
+  <div class="col-12 col-md-6">
+    <div class="stat-card accent">
+      <div class="stat-label">Aceites no periodo</div>
+      <div class="stat-value">{{ totals.total_accepted }}</div>
+    </div>
+  </div>
+</div>
+
+<div class="card p-3 mb-4">
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <h2 class="section-title">Relatorios diarios</h2>
+    <div class="d-flex gap-2">
+      <a class="btn btn-outline-dark btn-sm" href="{{ url_for('export_excel', start=start.isoformat() if start else None, end=end.isoformat() if end else None) }}">Exportar Excel</a>
+      <a class="btn btn-outline-dark btn-sm" href="{{ url_for('export_pdf', start=start.isoformat() if start else None, end=end.isoformat() if end else None) }}">Exportar PDF</a>
+    </div>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-hover align-middle">
+      <thead>
+        <tr>
+          <th>Data</th>
+          <th>Disparos</th>
+          <th>Aceites</th>
+          <th>Encaminhados</th>
+          <th>Observacoes</th>
+          {% if current_user.role == 'editor' %}
+            <th></th>
+          {% endif %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for report in reports %}
+          <tr>
+            <td>{{ report.report_date.strftime("%d/%m/%Y") }}</td>
+            <td>{{ report.total_sent }}</td>
+            <td>{{ report.total_accepted }}</td>
+            <td>{{ report_allocations[report.id] }}</td>
+            <td>{{ report.notes or '-' }}</td>
+            {% if current_user.role == 'editor' %}
+              <td class="text-end">
+                <a class="btn btn-sm btn-outline-primary" href="{{ url_for('edit_report', report_id=report.id) }}">Editar</a>
+              </td>
+            {% endif %}
+          </tr>
+        {% else %}
+          <tr>
+            <td colspan="{{ 6 if current_user.role == 'editor' else 5 }}" class="text-center text-muted">Nenhum relatorio encontrado.</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card p-3">
+  <h2 class="section-title">Total por vendedor</h2>
+  <div class="row g-3 mt-1">
+    {% for name, total in vendor_totals %}
+      <div class="col-12 col-md-4">
+        <div class="vendor-card">
+          <div class="vendor-name">{{ name }}</div>
+          <div class="vendor-total">{{ total or 0 }}</div>
+        </div>
+      </div>
+    {% else %}
+      <div class="col-12 text-muted">Sem dados no periodo.</div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}
