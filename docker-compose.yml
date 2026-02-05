@@ -9,6 +9,9 @@ services:
       - LETSENCRYPT_EMAIL=contato@abmix.com.br
       - API_TOKEN=change-me-too
       - API_USER=julio
+      - RESEND_API_KEY=change-me
+      - RESEND_FROM=relatorio@abmix.tech
+      - RESEND_TO=supervisao@abmix.com.br,michelle@abmix.com.br
     volumes:
       - ./instance:/app/instance
     expose:

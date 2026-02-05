@@ -28,6 +28,11 @@ try:
 except Exception:
     openpyxl = None
 
+try:
+    import resend
+except Exception:
+    resend = None
+
 
 login_manager = LoginManager()
 
@@ -596,6 +601,9 @@ def register_routes(app):
         )
         db.session.commit()
 
+        if not updated:
+            send_report_email(report, allocations)
+
         response = {"status": "ok", "report_id": report.id, "updated": updated}
         if total_recusados is not None:
             response["total_recusados_ignored"] = total_recusados
@@ -662,6 +670,106 @@ def truncate_text(value, max_len):
     if len(text) <= max_len:
         return text
     return text[: max_len - 3] + "..."
+
+
+def send_report_email(report, allocations):
+    if resend is None:
+        return
+
+    api_key = os.getenv("RESEND_API_KEY")
+    from_addr = os.getenv("RESEND_FROM")
+    to_list = os.getenv("RESEND_TO", "")
+
+    if not api_key or not from_addr or not to_list:
+        return
+
+    recipients = [email.strip() for email in to_list.split(",") if email.strip()]
+    if not recipients:
+        return
+
+    resend.api_key = api_key
+
+    report_date = report.report_date.strftime("%d/%m/%Y")
+    subject = f"Relatorio Diario de Disparos - {report_date}"
+
+    allocation_rows = ""
+    allocations_sorted = sorted(allocations, key=lambda a: a["vendor_id"])
+    if allocations_sorted:
+        rows = []
+        for allocation in allocations_sorted:
+            vendor = Vendor.query.get(allocation["vendor_id"])
+            if not vendor:
+                continue
+            rows.append(
+                f"<tr>"
+                f"<td style='padding:8px;border:1px solid #e5e7eb;'>{vendor.name}</td>"
+                f"<td style='padding:8px;border:1px solid #e5e7eb;text-align:center;'>{allocation['accepted_count']}</td>"
+                f"</tr>"
+            )
+        allocation_rows = "".join(rows)
+    else:
+        allocation_rows = (
+            "<tr>"
+            "<td style='padding:8px;border:1px solid #e5e7eb;'>-</td>"
+            "<td style='padding:8px;border:1px solid #e5e7eb;text-align:center;'>0</td>"
+            "</tr>"
+        )
+
+    html = f"""
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Relatorio Diario</title>
+  </head>
+  <body style="margin:0;padding:0;background:#f5f7fb;font-family:Arial,Helvetica,sans-serif;color:#111827;">
+    <div style="max-width:720px;margin:0 auto;padding:24px;">
+      <div style="background:#0b6e4f;color:#ffffff;padding:20px 24px;border-radius:12px 12px 0 0;">
+        <h1 style="margin:0;font-size:20px;font-weight:700;">Relatorio Diario de Disparos</h1>
+        <p style="margin:6px 0 0;font-size:14px;">Data: {report_date}</p>
+      </div>
+      <div style="background:#ffffff;padding:20px 24px;border-radius:0 0 12px 12px;box-shadow:0 8px 24px rgba(15,23,42,0.08);">
+        <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:16px;">
+          <div style="flex:1;min-width:200px;border:1px solid #e5e7eb;border-radius:10px;padding:12px;">
+            <div style="font-size:12px;text-transform:uppercase;color:#6b7280;letter-spacing:1px;">Disparos</div>
+            <div style="font-size:26px;font-weight:700;margin-top:6px;">{report.total_sent}</div>
+          </div>
+          <div style="flex:1;min-width:200px;border:1px solid #e5e7eb;border-radius:10px;padding:12px;background:#f0fdfa;">
+            <div style="font-size:12px;text-transform:uppercase;color:#0f766e;letter-spacing:1px;">Aceites</div>
+            <div style="font-size:26px;font-weight:700;margin-top:6px;color:#0f766e;">{report.total_accepted}</div>
+          </div>
+        </div>
+        <h2 style="font-size:16px;margin:0 0 8px;">Encaminhamentos por vendedor</h2>
+        <table style="width:100%;border-collapse:collapse;font-size:14px;">
+          <thead>
+            <tr>
+              <th style="text-align:left;padding:8px;border:1px solid #e5e7eb;background:#f8fafc;">Vendedor</th>
+              <th style="text-align:center;padding:8px;border:1px solid #e5e7eb;background:#f8fafc;">Aceites</th>
+            </tr>
+          </thead>
+          <tbody>
+            {allocation_rows}
+          </tbody>
+        </table>
+        <div style="margin-top:16px;font-size:12px;color:#6b7280;">Gerado automaticamente pelo n8n.</div>
+      </div>
+    </div>
+  </body>
+</html>
+"""
+
+    try:
+        resend.Emails.send(
+            {
+                "from": from_addr,
+                "to": recipients,
+                "subject": subject,
+                "html": html,
+            }
+        )
+    except Exception:
+        return
 
 
 def extract_api_token(req):

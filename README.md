@@ -91,3 +91,11 @@ Regras:
 - Se `total_accepted` nao vier, ele sera a soma das alocacoes.
 - A soma das alocacoes deve bater com `total_accepted`.
 - `total_accepted` nao pode ser maior que `total_sent`.
+
+## Email diario (Resend)
+Envie o relatorio por email logo apos receber o webhook do n8n.
+
+Variaveis:
+- `RESEND_API_KEY`: chave da API do Resend
+- `RESEND_FROM`: remetente verificado (ex: `relatorio@abmix.tech`)
+- `RESEND_TO`: lista de emails separados por virgula
