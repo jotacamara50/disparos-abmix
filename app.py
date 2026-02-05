@@ -458,20 +458,33 @@ def register_routes(app):
         pdf.cell(0, 8, safe_text("Relatorios diarios"), ln=True)
         pdf.set_font("Helvetica", size=10)
 
-        for report in reports:
-            allocation_parts = []
-            for allocation in sorted(report.allocations, key=lambda a: a.vendor.name):
-                allocation_parts.append(f"{allocation.vendor.name}: {allocation.accepted_count}")
-            allocation_text = ", ".join(allocation_parts) if allocation_parts else "-"
+        body_width = pdf.w - pdf.l_margin - pdf.r_margin
 
+        for report in reports:
             line = (
                 f"Data: {report.report_date.strftime('%d/%m/%Y')} | Disparos: {report.total_sent} | "
                 f"Aceites: {report.total_accepted}"
             )
-            pdf.multi_cell(0, 6, safe_text(line))
-            pdf.multi_cell(0, 6, safe_text(f"Encaminhados: {allocation_text}"))
+            pdf.multi_cell(body_width, 6, safe_text(line))
+
+            pdf.set_font("Helvetica", "B", 10)
+            pdf.multi_cell(body_width, 6, safe_text("Encaminhados:"))
+            pdf.set_font("Helvetica", size=9)
+            allocations_sorted = sorted(report.allocations, key=lambda a: a.vendor.name)
+            if allocations_sorted:
+                for allocation in allocations_sorted:
+                    allocation_line = f"- {allocation.vendor.name}: {allocation.accepted_count}"
+                    pdf.multi_cell(body_width, 5, safe_text(allocation_line))
+            else:
+                pdf.multi_cell(body_width, 5, safe_text("-"))
+
             if report.notes:
-                pdf.multi_cell(0, 6, safe_text(f"Observacoes: {report.notes}"))
+                pdf.set_font("Helvetica", "B", 10)
+                pdf.multi_cell(body_width, 6, safe_text("Observacoes:"))
+                pdf.set_font("Helvetica", size=9)
+                pdf.multi_cell(body_width, 5, safe_text(report.notes))
+
+            pdf.set_font("Helvetica", size=10)
             pdf.ln(2)
 
         pdf_output = pdf.output(dest="S")
