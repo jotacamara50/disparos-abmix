@@ -459,6 +459,8 @@ def register_routes(app):
         pdf.set_font("Helvetica", size=10)
 
         body_width = pdf.w - pdf.l_margin - pdf.r_margin
+        name_col = int(body_width * 0.72)
+        count_col = int(body_width - name_col)
 
         for report in reports:
             line = (
@@ -468,24 +470,31 @@ def register_routes(app):
             pdf.multi_cell(body_width, 6, safe_text(line))
 
             pdf.set_font("Helvetica", "B", 10)
-            pdf.multi_cell(body_width, 6, safe_text("Encaminhados:"))
+            pdf.cell(body_width, 6, safe_text("Encaminhados"), ln=True)
+            pdf.set_font("Helvetica", "B", 9)
+            pdf.cell(name_col, 6, safe_text("Vendedor"), border=1)
+            pdf.cell(count_col, 6, safe_text("Aceites"), border=1, ln=True, align="C")
+
             pdf.set_font("Helvetica", size=9)
             allocations_sorted = sorted(report.allocations, key=lambda a: a.vendor.name)
             if allocations_sorted:
                 for allocation in allocations_sorted:
-                    allocation_line = f"- {allocation.vendor.name}: {allocation.accepted_count}"
-                    pdf.multi_cell(body_width, 5, safe_text(allocation_line))
+                    name_text = truncate_text(allocation.vendor.name, 48)
+                    pdf.cell(name_col, 6, safe_text(name_text), border=1)
+                    pdf.cell(count_col, 6, safe_text(str(allocation.accepted_count)), border=1, ln=True, align="C")
             else:
-                pdf.multi_cell(body_width, 5, safe_text("-"))
+                pdf.cell(name_col, 6, safe_text("-"), border=1)
+                pdf.cell(count_col, 6, safe_text("0"), border=1, ln=True, align="C")
 
             if report.notes:
+                pdf.ln(1)
                 pdf.set_font("Helvetica", "B", 10)
-                pdf.multi_cell(body_width, 6, safe_text("Observacoes:"))
+                pdf.cell(body_width, 6, safe_text("Observacoes"), ln=True)
                 pdf.set_font("Helvetica", size=9)
                 pdf.multi_cell(body_width, 5, safe_text(report.notes))
 
             pdf.set_font("Helvetica", size=10)
-            pdf.ln(2)
+            pdf.ln(3)
 
         pdf_output = pdf.output(dest="S")
         if isinstance(pdf_output, str):
@@ -636,6 +645,14 @@ def build_allocations(vendors, form_data, report_id):
 def safe_text(value):
     text = value if value is not None else ""
     return str(text).encode("latin-1", "replace").decode("latin-1")
+
+
+def truncate_text(value, max_len):
+    text = value if value is not None else ""
+    text = str(text).strip()
+    if len(text) <= max_len:
+        return text
+    return text[: max_len - 3] + "..."
 
 
 def extract_api_token(req):
