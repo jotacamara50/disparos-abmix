@@ -19,11 +19,12 @@
       <div class="col-6 col-md-4">
         <label class="form-label">Aceites</label>
         <input class="form-control" type="number" min="0" name="total_accepted" id="total_accepted" value="{{ report.total_accepted if report else '' }}" required>
+        <div class="form-text">Preenchido automaticamente conforme os encaminhamentos (voce pode ajustar).</div>
       </div>
     </div>
 
     <div class="mt-4">
-      <h2 class="section-title">Encaminhamento por vendedor</h2>
+      <h2 class="section-title">Encaminhamento por vendedor (aceites)</h2>
       <div class="row g-3 mt-1">
         {% for vendor in vendors %}
           <div class="col-12 col-md-6">
@@ -58,6 +59,7 @@
 <script>
   const inputs = document.querySelectorAll('.vendor-count');
   const totalAccepted = document.getElementById('total_accepted');
+  let autoAccepted = !totalAccepted.value;
 
   function recalc() {
     let sum = 0;
@@ -68,9 +70,15 @@
       }
     });
     totalAccepted.dataset.sum = sum;
+    if (autoAccepted) {
+      totalAccepted.value = sum;
+    }
   }
 
   inputs.forEach(input => input.addEventListener('input', recalc));
+  totalAccepted.addEventListener('input', () => {
+    autoAccepted = false;
+  });
   recalc();
 
   const dateInput = document.getElementById('report_date');
