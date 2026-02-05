@@ -151,7 +151,10 @@ def parse_date(value):
     try:
         return date.fromisoformat(value)
     except ValueError:
-        return None
+        try:
+            return datetime.strptime(value, "%d/%m/%Y").date()
+        except ValueError:
+            return None
 
 
 def register_routes(app):
@@ -517,6 +520,9 @@ def register_routes(app):
         report_date = parse_date(payload.get("date")) or date.today()
         total_sent = payload.get("total_sent")
         total_accepted = payload.get("total_accepted")
+        if total_accepted is None:
+            total_accepted = payload.get("total_aceites")
+        total_recusados = payload.get("total_recusados")
         notes = (payload.get("notes") or "").strip()
         allocations_payload = payload.get("allocations") or []
 
@@ -590,7 +596,10 @@ def register_routes(app):
         )
         db.session.commit()
 
-        return jsonify({"status": "ok", "report_id": report.id, "updated": updated}), 200
+        response = {"status": "ok", "report_id": report.id, "updated": updated}
+        if total_recusados is not None:
+            response["total_recusados_ignored"] = total_recusados
+        return jsonify(response), 200
 
 
 def validate_report(report_date, total_sent, total_accepted, vendors, form_data):
@@ -681,6 +690,8 @@ def parse_allocations(items):
         vendor_email = (item.get("email") or "").strip().lower()
         vendor_name = (item.get("name") or "").strip()
         count = item.get("count")
+        if count is None:
+            count = item.get("leads_interessados")
 
         try:
             count = int(count)
