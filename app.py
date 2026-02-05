@@ -436,14 +436,27 @@ def register_routes(app):
         pdf = FPDF()
         pdf.set_auto_page_break(auto=True, margin=15)
         pdf.add_page()
-        pdf.set_font("Helvetica", size=14)
-        pdf.cell(0, 10, "Relatorio Diario", ln=True)
+        pdf.set_font("Helvetica", "B", 16)
+        pdf.cell(0, 10, safe_text("Relatorio Diario"), ln=True)
 
         pdf.set_font("Helvetica", size=10)
         if start or end:
             period = f"Periodo: {start.isoformat() if start else 'inicio'} a {end.isoformat() if end else 'hoje'}"
-            pdf.cell(0, 8, period, ln=True)
+            pdf.cell(0, 7, safe_text(period), ln=True)
+        pdf.cell(0, 7, safe_text(f"Gerado em: {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}"), ln=True)
         pdf.ln(2)
+
+        total_sent_sum = sum(r.total_sent for r in reports)
+        total_accepted_sum = sum(r.total_accepted for r in reports)
+        pdf.set_font("Helvetica", "B", 11)
+        pdf.cell(0, 8, safe_text("Resumo do periodo"), ln=True)
+        pdf.set_font("Helvetica", size=10)
+        pdf.cell(0, 6, safe_text(f"Disparos: {total_sent_sum} | Aceites: {total_accepted_sum}"), ln=True)
+        pdf.ln(2)
+
+        pdf.set_font("Helvetica", "B", 11)
+        pdf.cell(0, 8, safe_text("Relatorios diarios"), ln=True)
+        pdf.set_font("Helvetica", size=10)
 
         for report in reports:
             allocation_parts = []
@@ -452,13 +465,13 @@ def register_routes(app):
             allocation_text = ", ".join(allocation_parts) if allocation_parts else "-"
 
             line = (
-                f"Data: {report.report_date.isoformat()} | Disparos: {report.total_sent} | "
+                f"Data: {report.report_date.strftime('%d/%m/%Y')} | Disparos: {report.total_sent} | "
                 f"Aceites: {report.total_accepted}"
             )
-            pdf.multi_cell(0, 6, line)
-            pdf.multi_cell(0, 6, f"Encaminhados: {allocation_text}")
+            pdf.multi_cell(0, 6, safe_text(line))
+            pdf.multi_cell(0, 6, safe_text(f"Encaminhados: {allocation_text}"))
             if report.notes:
-                pdf.multi_cell(0, 6, f"Observacoes: {report.notes}")
+                pdf.multi_cell(0, 6, safe_text(f"Observacoes: {report.notes}"))
             pdf.ln(2)
 
         pdf_output = pdf.output(dest="S")
@@ -605,6 +618,11 @@ def build_allocations(vendors, form_data, report_id):
                 )
             )
     return allocations
+
+
+def safe_text(value):
+    text = value if value is not None else ""
+    return str(text).encode("latin-1", "replace").decode("latin-1")
 
 
 def extract_api_token(req):
