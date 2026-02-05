@@ -33,12 +33,11 @@ body {
 }
 
 .brand-logo {
-  height: 48px;
+  height: 52px;
   width: auto;
+  max-width: 200px;
   display: block;
-  background: #ffffff;
-  padding: 4px 10px;
-  border-radius: 999px;
+  object-fit: contain;
 }
 
 .brand-sub {
