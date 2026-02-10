@@ -75,7 +75,12 @@
             <td>{{ report.notes or '-' }}</td>
             {% if current_user.role == 'editor' %}
               <td class="text-end">
-                <a class="btn btn-sm btn-outline-primary" href="{{ url_for('edit_report', report_id=report.id) }}">Editar</a>
+                <div class="d-flex flex-wrap gap-2 justify-content-end">
+                  <a class="btn btn-sm btn-outline-primary" href="{{ url_for('edit_report', report_id=report.id) }}">Editar</a>
+                  <form method="post" action="{{ url_for('send_report_email_route', report_id=report.id, start=start.isoformat() if start else None, end=end.isoformat() if end else None) }}">
+                    <button class="btn btn-sm btn-outline-secondary" type="submit">Enviar email</button>
+                  </form>
+                </div>
               </td>
             {% endif %}
           </tr>

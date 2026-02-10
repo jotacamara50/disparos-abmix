@@ -375,6 +375,28 @@ def register_routes(app):
             return redirect(url_for("vendors"))
         return render_template("vendor_edit.html", vendor=vendor)
 
+    @app.route("/reports/<int:report_id>/send-email", methods=["POST"])
+    @login_required
+    @roles_required("editor")
+    def send_report_email_route(report_id):
+        report = DailyReport.query.get_or_404(report_id)
+        allocations = [
+            {"vendor_id": allocation.vendor_id, "accepted_count": allocation.accepted_count}
+            for allocation in report.allocations
+        ]
+        success, error = send_report_email(report, allocations)
+        if success:
+            flash("Email enviado.", "success")
+        else:
+            flash(error or "Falha ao enviar email.", "error")
+        return redirect(
+            url_for(
+                "dashboard",
+                start=request.args.get("start"),
+                end=request.args.get("end"),
+            )
+        )
+
     @app.route("/export/excel")
     @login_required
     def export_excel():
@@ -674,18 +696,18 @@ def truncate_text(value, max_len):
 
 def send_report_email(report, allocations):
     if resend is None:
-        return
+        return False, "Envio de email indisponivel."
 
     api_key = os.getenv("RESEND_API_KEY")
     from_addr = os.getenv("RESEND_FROM")
     to_list = os.getenv("RESEND_TO", "")
 
     if not api_key or not from_addr or not to_list:
-        return
+        return False, "Email nao configurado."
 
     recipients = [email.strip() for email in to_list.split(",") if email.strip()]
     if not recipients:
-        return
+        return False, "Lista de emails vazia."
 
     resend.api_key = api_key
 
@@ -769,7 +791,9 @@ def send_report_email(report, allocations):
             }
         )
     except Exception:
-        return
+        return False, "Falha ao enviar email."
+
+    return True, None
 
 
 def extract_api_token(req):
